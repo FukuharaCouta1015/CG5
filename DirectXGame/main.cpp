@@ -64,7 +64,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// コンパイル済のShader、エラー情報の格納
 	ID3DBlob* vsBlob = nullptr;    // 頂点シェーダオブジェクト
 	ID3DBlob* psBlob = nullptr;    // ピクセルシェーダオブジェクト
-	ID3DBlob* errorBlob = nullptr; // エラーオブジェクト
+	//ID3DBlob* errorBlob = nullptr; // エラーオブジェクト
 
 	// 頂点シェーダの読み込みとコンパイル
 	std::wstring vsFile = L"Resources/shaders/TestVS.hlsl";
@@ -162,22 +162,29 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	
 	vertexResource->Unmap(0, nullptr); // 頂点リソースのマッピングを解除
 
-	//描画開始
+	// メインループ
+	while (true) {
+		// エンジンの更新
+		if (KamataEngine::Update()) {
+			break;
+		}
 
-	dxCommon->PreDraw();
+		// 描画開始
 
-	commandList->SetGraphicsRootSignature(rootSignature); // ルートシグネチャのセット
-	commandList->SetPipelineState(pipelineState); // PSOのセット
-	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // 頂点バッファビューのセット
+		dxCommon->PreDraw();
 
-	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トポロジのセット
+		commandList->SetGraphicsRootSignature(rootSignature);     // ルートシグネチャのセット
+		commandList->SetPipelineState(pipelineState);             // PSOのセット
+		commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // 頂点バッファビューのセット
 
-	commandList->DrawInstanced(3, 1, 0, 0); // 描画コマンド
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // トポロジのセット
 
-	// 描画終了
+		commandList->DrawInstanced(3, 1, 0, 0); // 描画コマンド
 
-	dxCommon->PostDraw();
+		// 描画終了
 
+		dxCommon->PostDraw();
+	}
 	// 解放処理
 	vertexResource->Release();
 	//graphicsPipelineState->Release();
