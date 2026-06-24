@@ -1,35 +1,9 @@
 #include "KamataEngine.h"
-#include "d3dcompiler.h"
 #include <Windows.h>
 
+#include "Shader.h"
+
 using namespace KamataEngine;
-
-// シェーダーコンパイル関数
-ID3DBlob* CompileShader(const std::wstring& filePath, const std::string& shaderModel) {
-	ID3DBlob* shaderBlob = nullptr;
-	ID3DBlob* errorBlob = nullptr;
-
-	HRESULT hr = D3DCompileFromFile(
-	    // シェーダーファイル名
-	    filePath.c_str(), nullptr,
-	    // インクルード可能にする
-	    D3D_COMPILE_STANDARD_FILE_INCLUDE,
-	    // エントリーポイント名
-	    "main", shaderModel.c_str(),
-	    // デバッグ用設定
-	    D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &shaderBlob, &errorBlob);
-
-	// エラーが発生した場合止める
-	if (FAILED(hr)) {
-		if (errorBlob) {
-			OutputDebugStringA(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
-			errorBlob->Release();
-		}
-		assert(false);
-	}
-	// 生成したshaderBlobを返す
-	return shaderBlob;
-}
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
@@ -60,18 +34,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	descriptorRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	ID3DBlob* signatureBlob = nullptr;
 	ID3DBlob* errorBlob = nullptr;
-
 	HRESULT hr = D3D12SerializeRootSignature(&descriptorRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
-
-	
-	if (FAILED(hr)) {
-		if (errorBlob) {
-			DebugText::GetInstance()->ConsolePrintf(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
-			errorBlob->Release();
-		}
+	if (FAILED(false)) {
+		DebugText::GetInstance()->ConsolePrintf(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
 		assert(false);
 	}
-
 	// バイナリとともに生成
 	ID3D12RootSignature* rootSignature = nullptr;
 	hr = dxCommon->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
@@ -110,26 +77,29 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 #pragma region VertexShaderをコンパイルする
 
-	ID3DBlob* vsBlob = CompileShader(L"Resources/shaders/TestVS.hlsl", "vs_5_0");
-	assert(vsBlob != nullptr);
+	Shader vs;
+	vs.LoadDxc(L"Resources/shaders/TestVS.hlsl", L"vs_6_0");
+	assert(vs.GetDxcBlob() != nullptr);
 
 #pragma endregion
 
 #pragma region PixelShaderをコンパイルする
-	ID3DBlob* psBlob = CompileShader(L"Resources/shaders/TestPS.hlsl", "ps_5_0");
-	assert(psBlob != nullptr);
+
+	Shader ps;
+	ps.LoadDxc(L"Resources/shaders/TestPS.hlsl", L"ps_6_0");
+	assert(ps.GetDxcBlob() != nullptr);
 
 #pragma endregion
 
 #pragma region PSO(PixelShaderObject)の生成
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicPiplineStateDesc{};
-	graphicPiplineStateDesc.pRootSignature = rootSignature;                             // RootSignature
-	graphicPiplineStateDesc.InputLayout = inputLayoutDesc;                              // InputLayout
-	graphicPiplineStateDesc.VS = {vsBlob->GetBufferPointer(), vsBlob->GetBufferSize()}; // VertexShader
-	graphicPiplineStateDesc.PS = {psBlob->GetBufferPointer(), psBlob->GetBufferSize()}; // PixelShader
-	graphicPiplineStateDesc.BlendState = blendDesc;                                     // BlendState
-	graphicPiplineStateDesc.RasterizerState = rastarizerDesc;                           // Rasterizer
+	graphicPiplineStateDesc.pRootSignature = rootSignature;                                               // RootSignature
+	graphicPiplineStateDesc.InputLayout = inputLayoutDesc;                                                // InputLayout
+	graphicPiplineStateDesc.VS = {vs.GetDxcBlob()->GetBufferPointer(), vs.GetDxcBlob()->GetBufferSize()}; // VertexShader
+	graphicPiplineStateDesc.PS = {ps.GetDxcBlob()->GetBufferPointer(), ps.GetDxcBlob()->GetBufferSize()}; // PixelShader
+	graphicPiplineStateDesc.BlendState = blendDesc;                                                       // BlendState
+	graphicPiplineStateDesc.RasterizerState = rastarizerDesc;                                             // Rasterizer
 
 	// 書き込むRTVの情報
 	// 1つのRTVに書き込む(2つ同時も可能)
@@ -243,9 +213,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	vertexResource->Release();
 	graphicPiplineState->Release();
 	signatureBlob->Release();
-
-	vsBlob->Release();
-	psBlob->Release();
 
 #pragma endregion
 
