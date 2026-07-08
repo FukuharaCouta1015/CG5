@@ -1,6 +1,31 @@
-#include "Sprite.hlsli"
+/*
+float4 main() : SV_TARGET
+{
+	return float4(1.0f, 1.0f, 1.0f, 1.0f);
+}
+*/
 
-Texture2D<float4> tex : register(t0); // 0番スロットに設定されたテクスチャ
-SamplerState smp : register(s0);      // 0番スロットに設定されたサンプラー
+// Test.hlsli (��)
+typedef float2 float32_t2;
+typedef float4 float32_t4;
 
-float4 main(VSOutput input) : SV_TARGET { return tex.Sample(smp, input.uv) * color; }
+struct VertexShaderOutput
+{
+    float4 position : SV_POSITION;
+    float2 texcoord : TEXCOORD0;
+};
+
+
+struct PixelShaderOutput
+{
+    float32_t4 color : SV_TARGET0;
+};
+
+PixelShaderOutput main(VertexShaderOutput input)
+{
+    PixelShaderOutput output;
+    float32_t2 uv = input.texcoord.xy;
+    
+    output.color = float32_t4(uv.x, uv.y, 0.0f, 1.0f);
+    return output;
+}

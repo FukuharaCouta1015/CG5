@@ -1,90 +1,31 @@
 #include "KamataEngine.h"
-#include "d3dcompiler.h"
 #include <Windows.h>
+
+#include "IndexBuffer.h"
+#include "PipelineState.h"
+#include "RootSignature.h"
+#include "Shader.h"
+#include "VertexBuffer.h"
 
 using namespace KamataEngine;
 
-// シェーダーコンパイル関数
-ID3DBlob* CompileShader(const std::wstring& filePath, const std::string& shaderModel) {
-	ID3DBlob* shaderBlob = nullptr;
-	ID3DBlob* errorBlob = nullptr;
+// 関数プロトタイプ宣言
+void SetupPipelineState(PipelineState& pipelineState, RootSignature& rs, Shader& vs, Shader& ps);
 
-	HRESULT hr = D3DCompileFromFile(
-	    // シェーダーファイル名
-	    filePath.c_str(), nullptr,
-	    // インクルード可能にする
-	    D3D_COMPILE_STANDARD_FILE_INCLUDE,
-	    // エントリーポイント名
-	    "main", shaderModel.c_str(),
-	    // デバッグ用設定
-	    D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &shaderBlob, &errorBlob);
-
-	// エラーが発生した場合止める
-	if (FAILED(hr)) {
-		if (errorBlob) {
-			OutputDebugStringA(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
-			errorBlob->Release();
-		}
-		assert(false);
-	}
-	// 生成したshaderBlobを返す
-	return shaderBlob;
-}
-
-// Windowsアプリでのエントリーポイント(main関数)
-int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
-	// エンジンの初期化
-	KamataEngine::Initialize(L"LE3D_21_フクハラコウタ");
-
-	// DirectXCommonインスタンスを取得する
-	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
-
-#pragma region レンダリングパイプライン(main.cpp-WinMain)
-
-#pragma region DirectXCommonの管理の取得
-
-	// DirectXCommonクラスが管理している、ウインドウの高さと幅の値の取得
-	int32_t w = dxCommon->GetBackBufferWidth();
-	int32_t h = dxCommon->GetBackBufferHeight();
-	DebugText::GetInstance()->ConsolePrintf(std::format("width: {}, hieght: {}\n", w, h).c_str());
-
-	// DirectXCommonクラスが管理している、コマンドリストの取得
-	ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
-
-#pragma endregion
-
-#pragma region RootSignature作成
-
-	// 構造体にデータを用意する
-	D3D12_ROOT_SIGNATURE_DESC descriptorRootSignature{};
-	descriptorRootSignature.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-	ID3DBlob* signatureBlob = nullptr;
-	ID3DBlob* errorBlob = nullptr;
-
-	HRESULT hr = D3D12SerializeRootSignature(&descriptorRootSignature, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
-
-	
-	if (FAILED(hr)) {
-		if (errorBlob) {
-			DebugText::GetInstance()->ConsolePrintf(reinterpret_cast<char*>(errorBlob->GetBufferPointer()));
-			errorBlob->Release();
-		}
-		assert(false);
-	}
-
-	// バイナリとともに生成
-	ID3D12RootSignature* rootSignature = nullptr;
-	hr = dxCommon->GetDevice()->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
-	assert(SUCCEEDED(hr));
-
-#pragma endregion
-
+void SetupPipelineState(PipelineState& pipelineState, RootSignature& rs, Shader& vs, Shader& ps) {
 #pragma region InputLayout
-	D3D12_INPUT_ELEMENT_DESC inputElementDescs[1] = {};
+
+	D3D12_INPUT_ELEMENT_DESC inputElementDescs[2] = {};
 	inputElementDescs[0].SemanticName = "POSITION";
 	inputElementDescs[0].SemanticIndex = 0;
 	inputElementDescs[0].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	inputElementDescs[0].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
+
+	inputElementDescs[1].SemanticName = "TEXCOORD";
+	inputElementDescs[1].SemanticIndex = 0;
+	inputElementDescs[1].Format = DXGI_FORMAT_R32G32_FLOAT;
+	inputElementDescs[1].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
+
 	D3D12_INPUT_LAYOUT_DESC inputLayoutDesc{};
 	inputLayoutDesc.pInputElementDescs = inputElementDescs;
 	inputLayoutDesc.NumElements = _countof(inputElementDescs);
@@ -100,36 +41,25 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 #pragma endregion
 
 #pragma region RasterizerState
+
 	D3D12_RASTERIZER_DESC rastarizerDesc{};
 	// 裏面(反時計回り)をカリング
 	rastarizerDesc.CullMode = D3D12_CULL_MODE_BACK;
 	// 塗りつぶしモードをソリッドにする
 	//(ワイヤーフレームなら D3D12_FILL_MODE_WiREFRAME)
 	rastarizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
-#pragma endregion
-
-#pragma region VertexShaderをコンパイルする
-
-	ID3DBlob* vsBlob = CompileShader(L"Resources/shaders/TestVS.hlsl", "vs_5_0");
-	assert(vsBlob != nullptr);
-
-#pragma endregion
-
-#pragma region PixelShaderをコンパイルする
-	ID3DBlob* psBlob = CompileShader(L"Resources/shaders/TestPS.hlsl", "ps_5_0");
-	assert(psBlob != nullptr);
 
 #pragma endregion
 
 #pragma region PSO(PixelShaderObject)の生成
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC graphicPiplineStateDesc{};
-	graphicPiplineStateDesc.pRootSignature = rootSignature;                             // RootSignature
-	graphicPiplineStateDesc.InputLayout = inputLayoutDesc;                              // InputLayout
-	graphicPiplineStateDesc.VS = {vsBlob->GetBufferPointer(), vsBlob->GetBufferSize()}; // VertexShader
-	graphicPiplineStateDesc.PS = {psBlob->GetBufferPointer(), psBlob->GetBufferSize()}; // PixelShader
-	graphicPiplineStateDesc.BlendState = blendDesc;                                     // BlendState
-	graphicPiplineStateDesc.RasterizerState = rastarizerDesc;                           // Rasterizer
+	graphicPiplineStateDesc.pRootSignature = rs.Get();                                                    // RootSignature
+	graphicPiplineStateDesc.InputLayout = inputLayoutDesc;                                                // InputLayout
+	graphicPiplineStateDesc.VS = {vs.GetDxcBlob()->GetBufferPointer(), vs.GetDxcBlob()->GetBufferSize()}; // VertexShader
+	graphicPiplineStateDesc.PS = {ps.GetDxcBlob()->GetBufferPointer(), ps.GetDxcBlob()->GetBufferSize()}; // PixelShader
+	graphicPiplineStateDesc.BlendState = blendDesc;                                                       // BlendState
+	graphicPiplineStateDesc.RasterizerState = rastarizerDesc;                                             // Rasterizer
 
 	// 書き込むRTVの情報
 	// 1つのRTVに書き込む(2つ同時も可能)
@@ -150,62 +80,88 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// どのように画面に色を打ち込むのかの設定
 	graphicPiplineStateDesc.SampleDesc.Count = 1;
 	graphicPiplineStateDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-	// 準備完了、POSを生成
-	ID3D12PipelineState* graphicPiplineState = nullptr;
-	hr = dxCommon->GetDevice()->CreateGraphicsPipelineState(&graphicPiplineStateDesc, IID_PPV_ARGS(&graphicPiplineState));
-	assert(SUCCEEDED(hr));
+
+	// 準備完了、PSOを生成
+	pipelineState.Create(graphicPiplineStateDesc);
+#pragma endregion
+}
+
+// Windowsアプリでのエントリーポイント(main関数)
+int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
+	// エンジンの初期化
+	KamataEngine::Initialize(L"LE3D_21_フクハラコウタ");
+
+#pragma region DirectXCommonの管理の取得
+
+	// DirectXCommonインスタンスを取得する
+	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
+
+	// DirectXCommonクラスが管理している、ウインドウの高さと幅の値の取得
+	int32_t w = dxCommon->GetBackBufferWidth();
+	int32_t h = dxCommon->GetBackBufferHeight();
+	DebugText::GetInstance()->ConsolePrintf(std::format("width: {}, hieght: {}\n", w, h).c_str());
+
+	// DirectXCommonクラスが管理している、コマンドリストの取得
+	ID3D12GraphicsCommandList* commandList = dxCommon->GetCommandList();
 
 #pragma endregion
 
-#pragma region VertexResourceを生成する
+#pragma region レンダリングパイプライン(main.cpp-WinMain)
 
-	D3D12_HEAP_PROPERTIES uploadHeapProperties{};
-	// CPUから書き込むヒープ
-	uploadHeapProperties.Type = D3D12_HEAP_TYPE_UPLOAD;
-	// 頂点リソースの設定
-	D3D12_RESOURCE_DESC vertexResourceDesc{};
-	// バッファ
-	vertexResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	// リソースのサイズ(三角形->Vector4を3頂点分)
-	vertexResourceDesc.Width = sizeof(Vector4) * 3;
-	// バッファの場合はこれらは1にする決まり
-	vertexResourceDesc.Height = 1;
-	vertexResourceDesc.DepthOrArraySize = 1;
-	vertexResourceDesc.MipLevels = 1;
-	vertexResourceDesc.SampleDesc.Count = 1;
-	// バッファの場合はこれにする決まり
-	vertexResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	// 実際に頂点リソースを生成する
-	ID3D12Resource* vertexResource = nullptr;
-	hr = dxCommon->GetDevice()->CreateCommittedResource(&uploadHeapProperties, D3D12_HEAP_FLAG_NONE, &vertexResourceDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexResource));
-	assert(SUCCEEDED(hr));
+	// RootSignature作成
+	RootSignature rs;
+	rs.Create();
 
-#pragma endregion
+	// VertexShaderをコンパイルする
+	Shader vs;
+	vs.LoadDxc(L"Resources/shaders/TestVS.hlsl", L"vs_6_0");
+	assert(vs.GetDxcBlob() != nullptr);
 
-#pragma region VertexBufferViewを作成する
-	D3D12_VERTEX_BUFFER_VIEW vertexBufferView{};
-	// リソースの先頭アドレスから使う
-	vertexBufferView.BufferLocation = vertexResource->GetGPUVirtualAddress();
-	// 使用するリソースのサイズは頂点3つ分のサイズ
-	vertexBufferView.SizeInBytes = sizeof(Vector4) * 3;
-	// 1つの頂点のサイズ
-	vertexBufferView.StrideInBytes = sizeof(Vector4);
+	// PixelShaderをコンパイルする
+	Shader ps;
+	ps.LoadDxc(L"Resources/shaders/TestPS.hlsl", L"ps_6_0");
+	assert(ps.GetDxcBlob() != nullptr);
+
+	// PipelineStateの作成
+	PipelineState pipelineState;
+	SetupPipelineState(pipelineState, rs, vs, ps);
+
 #pragma endregion
 
 #pragma region 頂点リソースにデータを書き込む
 
-	Vector4* vertexData = nullptr;
-	vertexResource->Map(0, nullptr, reinterpret_cast<void**>(&vertexData));
-	// 左下
-	vertexData[0] = {-0.5f, -0.5f, 0.0f, 1.0f};
-	// 上
-	vertexData[1] = {0.0f, 0.5f, 0.0f, 1.0f};
-	// 右下
-	vertexData[2] = {0.5f, -0.5f, 0.0f, 1.0f};
-	// 頂点リソースのマップを解除する
-	vertexResource->Unmap(0, nullptr);
+	struct VertexData {
+		Vector4 position;
+		Vector2 texcoord;
+	};
 
-#pragma endregion
+	VertexData vertices[] = {
+	    {{-1.0f, 1.0f, 0.0f, 1.0f},  {0.0f, 0.0f}}, // 0: 左上
+	    {{1.0f, 1.0f, 0.0f, 1.0f},   {1.0f, 0.0f}}, // 1: 右上
+	    {{-1.0f, -1.0f, 0.0f, 1.0f}, {0.0f, 1.0f}}, // 2: 左下
+	    {{1.0f, -1.0f, 0.0f, 1.0f},  {1.0f, 1.0f}}, // 3: 右下
+	};
+
+	// VertexResource,VertexBufferViewを生成する
+	VertexBuffer vb;
+	vb.Create(sizeof(vertices) * 3, sizeof(vertices[0]));
+	VertexData* pGpuVertices = nullptr;
+	vb.Get()->Map(0, nullptr, reinterpret_cast<void**>(&pGpuVertices));
+	for (int i = 0; i < _countof(vertices); ++i) {
+		pGpuVertices[i] = vertices[i];
+	}
+
+	// 頂点インデックスデータの準備
+	uint16_t indices[] = {0, 1, 2, 1, 3, 2};
+
+	IndexBuffer ib;
+	ib.Create(sizeof(indices), sizeof(indices[0]));
+	// 頂点インデックスにデータを書き込む
+	uint16_t* pGpuIndices = nullptr;
+	ib.Get()->Map(0, nullptr, reinterpret_cast<void**>(&pGpuIndices));
+	for (int i = 0; i < _countof(indices); ++i) {
+		pGpuIndices[i] = indices[i];
+	}
 
 #pragma endregion
 
@@ -222,15 +178,21 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 #pragma region 三角形の描画
 		// コマンドを積む
 		// RootSignatureの設定
-		commandList->SetGraphicsRootSignature(rootSignature);
+		commandList->SetGraphicsRootSignature(rs.Get());
 		// PSOの設定
-		commandList->SetPipelineState(graphicPiplineState);
+		commandList->SetPipelineState(pipelineState.Get());
 		// VBVの設定
-		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+		commandList->IASetVertexBuffers(0, 1, vb.GetView());
+
+		commandList->IASetIndexBuffer(ib.GetView());
+
 		// トポロジーの設定
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
 		// 頂点数、インデックス数、インデックスの開始位置、インデックスのオフセット
-		commandList->DrawInstanced(3, 1, 0, 0);
+		// commandList->DrawInstanced(6, 1, 0, 0);
+
+		commandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0, 0);
 
 #pragma endregion
 
@@ -240,12 +202,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 #pragma region 解放処理
 	//->Release();
-	vertexResource->Release();
-	graphicPiplineState->Release();
-	signatureBlob->Release();
-
-	vsBlob->Release();
-	psBlob->Release();
+	// vertexResource->Release();
+	// graphicPiplineState->Release();
 
 #pragma endregion
 
