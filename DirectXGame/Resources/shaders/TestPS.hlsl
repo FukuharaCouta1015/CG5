@@ -17,6 +17,8 @@ struct PixelShaderOutput
     float32_t4 color : SV_TARGET0;
 };
 
+
+
 PixelShaderOutput main(VertexShaderOutput input)
 {
     PixelShaderOutput output;
@@ -29,8 +31,6 @@ PixelShaderOutput main(VertexShaderOutput input)
     //output.color = float32_t4(1.0f, 0.0f, 0.0f, 1.0f);
     
     //output.color.a = 1.0f;
-    
-    
     
     
     //ÉJÉâÅ[
