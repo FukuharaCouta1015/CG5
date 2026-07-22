@@ -163,7 +163,14 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="IndexBuffer.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="MiscUtility.cpp" />
+    <ClCompile Include="PipelineState.cpp" />
+    <ClCompile Include="RootSignature.cpp" />
+    <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="VertexBuffer.cpp" />
+    <ClCompile Include="WorldTransformEx.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shaders\TerrainPS.hlsl">
@@ -277,9 +284,19 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Develop|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <None Include="Resources\shaders\Terrain.hlsli" />
+    <None Include="Resources\shaders\Test.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\shaders\Sprite.hlsli" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="IndexBuffer.h" />
+    <ClInclude Include="MiscUtility.h" />
+    <ClInclude Include="PipelineState.h" />
+    <ClInclude Include="RootSignature.h" />
+    <ClInclude Include="Shader.h" />
+    <ClInclude Include="VertexBuffer.h" />
+    <ClInclude Include="WorldTransformEx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
